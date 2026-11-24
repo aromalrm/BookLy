@@ -20,6 +20,7 @@ export type Book = {
   status: ReadingStatus;
   progress: number;
   notes: string;
+  summary: string;
   createdAt: string;
 };
 

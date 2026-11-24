@@ -6,3 +6,4 @@ out
 next-env.d.ts
 data/library.json
 data/library.json.tmp
+data/.shelf-seed

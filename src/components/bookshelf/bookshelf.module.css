@@ -161,6 +161,27 @@
   display: block;
 }
 
+.frontHit {
+  position: absolute;
+  z-index: 5;
+}
+
+.frontHit[hidden] {
+  display: none;
+}
+
+.openEdge {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 32%;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: transparent;
+}
+
 .cover img {
   object-fit: cover;
 }
@@ -222,6 +243,7 @@
 }
 
 .caption {
+  margin: 0;
   border: 0;
   background: transparent;
   text-align: center;

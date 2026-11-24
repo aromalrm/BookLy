@@ -52,6 +52,10 @@ type Motion = {
   open: boolean;
   closing: boolean;
   animateOpen: boolean;
+  hinge: number;
+  hinging: boolean;
+  holdHinge: boolean;
+  openAfterTurn: boolean;
   reduce: boolean;
   lastStamp: number;
   settle: number;
@@ -74,9 +78,9 @@ function classNames(...parts: Array<string | false | null | undefined>): string 
 
 /**
  * The only shelf-motion component. Books stand in one row. Wheel, drag,
- * and the arrow keys slide that row. The centered book turns from its
- * spine to its cover and leans toward the pointer. A side spine lifts
- * on hover. Opening unfolds the book page out of the cover.
+ * and the arrow keys slide that row. Clicking a spine turns that book
+ * until its cover faces the reader. Clicking the top of the facing
+ * cover tips it, then unfolds the page. A side spine lifts on hover.
  */
 export function Bookshelf({
   books,
@@ -92,6 +96,7 @@ export function Bookshelf({
   const stageRef = useRef<HTMLDivElement>(null);
   const cursorRef = useRef<HTMLDivElement>(null);
   const sheetRef = useRef<HTMLDivElement>(null);
+  const hitRef = useRef<HTMLDivElement>(null);
   const aspects = useRef(new Map<string, number>());
   const faces = useRef(new WeakMap<HTMLElement, FaceCache>());
   const motion = useRef<Motion>({
@@ -111,6 +116,10 @@ export function Bookshelf({
     open: false,
     closing: false,
     animateOpen: false,
+    hinge: 0,
+    hinging: false,
+    holdHinge: false,
+    openAfterTurn: false,
     reduce: false,
     lastStamp: 0,
     settle: 0,
@@ -193,6 +202,9 @@ export function Bookshelf({
       sheet.style.clipPath = "";
       state.open = false;
       state.closing = false;
+      state.holdHinge = false;
+      state.hinge = 0;
+      state.hinging = false;
       setShownId(null);
       onOpenChange?.(false);
     };
@@ -223,6 +235,10 @@ export function Bookshelf({
   const openSheet = useCallback(() => {
     const state = motion.current;
     if (state.open || state.closing || !state.activeId) return;
+    state.hinging = false;
+    state.openAfterTurn = false;
+    state.holdHinge = true;
+    state.hinge = 1;
     state.target = Math.round(state.target);
     state.position = state.target;
     drawRef.current(performance.now());
@@ -275,11 +291,16 @@ export function Bookshelf({
       [
         {
           clipPath: coverInset(rect, window.innerWidth, window.innerHeight),
-          transform: "rotate(-4.5deg)",
+          transform: "rotate(-8deg)",
+        },
+        {
+          clipPath: coverInset(rect, window.innerWidth, window.innerHeight),
+          transform: "rotate(-6deg)",
+          offset: 0.18,
         },
         { clipPath: "inset(0px 0px 0px 0px round 0px)", transform: "rotate(0deg)" },
       ],
-      { duration: 980, easing: "cubic-bezier(.76,0,.18,1)", fill: "both" },
+      { duration: 1080, easing: "cubic-bezier(.7,0,.18,1)", fill: "both" },
     );
     animation.onfinish = () => {
       sheet.style.clipPath = "";
@@ -362,8 +383,24 @@ export function Bookshelf({
         state.dragOrigin -= shift;
       }
 
+      const turned = Math.abs(state.target - state.position) < 0.035 && !state.dragging;
+      if (state.openAfterTurn && turned) {
+        state.openAfterTurn = false;
+        state.hinging = true;
+      }
+      const hingeTarget = state.hinging || state.holdHinge ? 1 : 0;
+      state.hinge = state.reduce ? hingeTarget : damp(state.hinge, hingeTarget, dt, 6.5);
+      let hingeDone = false;
+      if (state.hinging && state.hinge > 0.96 && turned) {
+        state.hinging = false;
+        state.hinge = 1;
+        state.holdHinge = true;
+        hingeDone = true;
+      }
+
       const nodes = stage.querySelectorAll<HTMLElement>("[data-slot]");
       if (nodes.length !== span) return;
+      const nearest: { node: HTMLElement | null; delta: number } = { node: null, delta: Infinity };
 
       const activeIndex = mod(Math.round(state.position), count);
       const active = list[activeIndex];
@@ -375,12 +412,15 @@ export function Bookshelf({
       const centerX = bounds.left + bounds.width / 2;
       const centerY = bounds.top + bounds.height / 2;
       const settled = Math.abs(state.target - state.position) < 0.3;
+      const coverTop = centerY - bookH / 2;
       const onCover =
         state.over &&
         !state.open &&
         settled &&
         Math.abs(state.pointerX - centerX) < coverWidth * 0.55 &&
         Math.abs(state.pointerY - centerY) < bookH * 0.55;
+      const onOpenEdge =
+        onCover && state.pointerY <= coverTop + bookH * 0.32 && state.pointerY >= coverTop - 10;
       const yawTarget = onCover
         ? ((state.pointerX - centerX) / (coverWidth * 0.55)) * 9
         : state.over
@@ -401,6 +441,10 @@ export function Bookshelf({
         const depth = widths[bookIndex] ?? bookH * 0.67;
         node.style.setProperty("--depth", `${depth}px`);
         const delta = state.loop ? wrapDelta(slot, state.position, span) : slot - state.position;
+        if (Math.abs(delta) < nearest.delta) {
+          nearest.delta = Math.abs(delta);
+          nearest.node = node;
+        }
         const x = trackOffset(delta, spine, gap, coverWidth);
         let cache = faces.current.get(node);
         if (!cache) {
@@ -419,13 +463,30 @@ export function Bookshelf({
         }
         node.style.visibility = "";
         const frontAmount = facing(delta);
-        const y = -bookH * (0.025 * frontAmount + 0.045 * cache.lift);
-        const z = bookH * 0.2 * frontAmount;
-        node.style.transform = `perspective(2200px) translate3d(${x}px, ${y}px, ${z}px) rotateZ(${-4.5 * frontAmount}deg) rotateX(${state.tiltX * frontAmount}deg) rotateY(${-90 * frontAmount + state.tiltY * frontAmount}deg)`;
+        const opening = frontAmount * state.hinge;
+        const y = -bookH * (0.025 * frontAmount + 0.045 * cache.lift + 0.045 * opening);
+        const z = bookH * (0.2 * frontAmount + 0.08 * opening);
+        node.style.transform = `perspective(2200px) translate3d(${x}px, ${y}px, ${z}px) rotateZ(${-4.5 * frontAmount}deg) rotateX(${state.tiltX * frontAmount - 14 * opening}deg) rotateY(${-90 * frontAmount + state.tiltY * frontAmount}deg)`;
         node.style.zIndex = String(Math.round(100 - Math.abs(delta) * 4));
         cache.spine?.style.setProperty("--shade", (0.55 * frontAmount).toFixed(3));
         cache.cover?.style.setProperty("--shade", ((1 - frontAmount) * 0.5).toFixed(3));
       });
+
+      const hit = hitRef.current;
+      if (hit) {
+        const cover = nearest.node?.querySelector<HTMLElement>("[data-face=cover]");
+        const rect = cover?.getBoundingClientRect();
+        const host = shelf.getBoundingClientRect();
+        if (rect && nearest.delta < 0.45 && rect.width > 30) {
+          hit.hidden = false;
+          hit.style.left = `${rect.left - host.left}px`;
+          hit.style.top = `${rect.top - host.top}px`;
+          hit.style.width = `${rect.width}px`;
+          hit.style.height = `${rect.height}px`;
+        } else {
+          hit.hidden = true;
+        }
+      }
 
       if (!stage.classList.contains(styles.ready)) stage.classList.add(styles.ready);
       shelf.dataset.ready = "true";
@@ -439,7 +500,7 @@ export function Bookshelf({
       state.cursorY += (state.pointerY - state.cursorY) * follow;
       cursor.style.transform = `translate3d(${state.cursorX}px, ${state.cursorY}px, 0)`;
       let mode = state.over && !state.open ? "on" : "";
-      if (mode && onCover) mode = "open";
+      if (mode && onOpenEdge) mode = "open";
       else if (
         mode &&
         state.hoverSlot >= 0 &&
@@ -451,6 +512,8 @@ export function Bookshelf({
       ) {
         mode = "hot";
       }
+      if (hingeDone) queueMicrotask(() => openSheet());
+
       if (mode !== state.cursorMode) {
         state.cursorMode = mode;
         cursor.className = classNames(
@@ -496,12 +559,34 @@ export function Bookshelf({
         state.target = Math.round(state.target) + 1;
         event.preventDefault();
       } else if (event.key === "Enter" && (!focused || focused === document.body)) {
-        openSheet();
+        requestOpen();
       }
+    };
+
+    const releaseHinge = () => {
+      if (state.open || state.closing) return;
+      state.hinging = false;
+      state.holdHinge = false;
+      state.openAfterTurn = false;
+    };
+
+    const requestOpen = () => {
+      if (state.open || state.closing || state.hinging || state.holdHinge) return;
+      state.target = Math.round(state.position);
+      if (state.reduce) {
+        openSheet();
+        return;
+      }
+      if (Math.abs(state.target - state.position) < 0.02 && !state.dragging) {
+        state.hinging = true;
+        return;
+      }
+      state.openAfterTurn = true;
     };
 
     const onWheel = (event: WheelEvent) => {
       if (state.open || blocked() || booksRef.current.length < 2) return;
+      releaseHinge();
       event.preventDefault();
       const dominant =
         Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
@@ -534,6 +619,7 @@ export function Bookshelf({
       if (!state.dragging && Math.abs(delta) > 5) {
         state.dragging = true;
         state.moved = true;
+        releaseHinge();
       }
       if (!state.dragging) return;
       const bookH = Number.parseFloat(stage.style.getPropertyValue("--book-h")) || 180;
@@ -549,13 +635,25 @@ export function Bookshelf({
     };
     const onClick = (event: MouseEvent) => {
       if (state.moved || state.open || blocked()) return;
-      const slotNode = (event.target as HTMLElement | null)?.closest<HTMLElement>("[data-slot]");
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("[data-front-hit]")) {
+        if (target.closest("[data-open-edge]")) requestOpen();
+        return;
+      }
+      const slotNode = target?.closest<HTMLElement>("[data-slot]");
       if (!slotNode) return;
       const slot = Number(slotNode.dataset.slot);
       const length = stage.querySelectorAll("[data-slot]").length;
       const delta = state.loop ? wrapDelta(slot, state.position, length) : slot - state.position;
-      if (Math.abs(delta) < 0.5) openSheet();
-      else state.target = Math.round(state.position + delta);
+      const centered = Math.abs(delta) < 0.35;
+      const settled = Math.abs(state.target - state.position) < 0.12;
+      const openingTop = (event.target as HTMLElement | null)?.closest("[data-open-edge]");
+      if (openingTop && centered && settled) {
+        requestOpen();
+        return;
+      }
+      releaseHinge();
+      if (!centered) state.target = Math.round(state.position + delta);
     };
     const onOver = (event: PointerEvent) => {
       const slotNode = (event.target as HTMLElement | null)?.closest<HTMLElement>("[data-slot]");
@@ -655,21 +753,26 @@ export function Bookshelf({
                 </div>
               ))}
             </div>
+            <div ref={hitRef} className={styles.frontHit} data-front-hit hidden>
+              <button
+                type="button"
+                className={styles.openEdge}
+                data-open-edge=""
+                data-testid="open-edge"
+                tabIndex={-1}
+                aria-label="Open this book"
+              />
+            </div>
           </div>
         )}
       </div>
 
       {books.length > 0 ? (
         <div className={styles.dock}>
-          <button
-            type="button"
-            className={styles.caption}
-            data-testid="book-caption"
-            onClick={openSheet}
-          >
+          <p className={styles.caption} data-testid="book-caption">
             <strong>{(books.find((book) => book.id === centeredId) ?? books[0]).title}</strong>
             <span>{(books.find((book) => book.id === centeredId) ?? books[0]).meta}</span>
-          </button>
+          </p>
           <div className={styles.arrows}>
             <button type="button" aria-label="Previous book" onClick={() => step(-1)}>
               <svg viewBox="0 0 18 10" aria-hidden="true">

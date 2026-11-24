@@ -106,6 +106,13 @@ export function BookPage({ book, onUpdate, onRemove }: Props) {
           {book.year ? ` · ${book.year}` : ""}
           {book.isbn ? ` · ${book.isbn}` : ""}
         </p>
+        {book.summary ? (
+          <div className="summary" data-testid="summary">
+            {book.summary.split(/\n\n+/).map((paragraph) => (
+              <p key={paragraph.slice(0, 48)}>{paragraph}</p>
+            ))}
+          </div>
+        ) : null}
         <label className="progressBlock">
           <span className="progressHead">
             <span>Reading progress</span>

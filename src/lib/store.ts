@@ -4,6 +4,7 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { shortAuthor, spineText } from "./labels";
 import { paletteFor } from "./palette";
+import { SHELF_SEED_ID, seededShelf } from "./shelf-seed";
 import type { Book, BookPatch, NewBookInput, ReadingStatus } from "./types";
 
 /**
@@ -15,7 +16,9 @@ import type { Book, BookPatch, NewBookInput, ReadingStatus } from "./types";
  */
 
 const DATA_PATH = path.join(process.cwd(), "data", "library.json");
+const MARKER_PATH = path.join(process.cwd(), "data", ".shelf-seed");
 const BLOB_PATH = "library.json";
+const MARKER_BLOB = "shelf.seed";
 const STATUSES = new Set<ReadingStatus>(["unread", "reading", "finished"]);
 
 let queue: Promise<unknown> = Promise.resolve();
@@ -50,7 +53,10 @@ function usesBlob(): boolean {
 function parseBooks(raw: string): Book[] {
   const parsed = JSON.parse(raw) as unknown;
   if (!Array.isArray(parsed)) return [];
-  return parsed.filter(isBook);
+  return parsed.filter(isBook).map((book) => ({
+    ...book,
+    summary: typeof book.summary === "string" ? book.summary : "",
+  }));
 }
 
 async function readFileLibrary(): Promise<Book[]> {
@@ -71,6 +77,35 @@ async function readBlobLibrary(): Promise<Book[]> {
 
 async function readAll(): Promise<Book[]> {
   return usesBlob() ? readBlobLibrary() : readFileLibrary();
+}
+
+async function readMarker(): Promise<string> {
+  if (usesBlob()) {
+    const result = await get(MARKER_BLOB, { access: "private", useCache: false });
+    if (!result || result.statusCode !== 200) return "";
+    return (await new Response(result.stream).text()).trim();
+  }
+  try {
+    return (await readFile(MARKER_PATH, "utf8")).trim();
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code === "ENOENT") return "";
+    throw error;
+  }
+}
+
+async function writeMarker(id: string): Promise<void> {
+  if (usesBlob()) {
+    await put(MARKER_BLOB, id, {
+      access: "private",
+      addRandomSuffix: false,
+      allowOverwrite: true,
+      contentType: "text/plain",
+    });
+    return;
+  }
+  await mkdir(path.dirname(MARKER_PATH), { recursive: true });
+  await writeFile(MARKER_PATH, id, "utf8");
 }
 
 async function writeFileLibrary(books: Book[]): Promise<void> {
@@ -102,8 +137,16 @@ function byCreated(a: Book, b: Book): number {
 }
 
 export async function listBooks(): Promise<Book[]> {
-  const books = await readAll();
-  return books.sort(byCreated);
+  return enqueue(async () => {
+    if ((await readMarker()) !== SHELF_SEED_ID) {
+      const seeded = seededShelf();
+      await writeAll(seeded);
+      await writeMarker(SHELF_SEED_ID);
+      return seeded;
+    }
+    const books = await readAll();
+    return books.sort(byCreated);
+  });
 }
 
 function cleanCover(url: string | null | undefined): string | null {
@@ -153,6 +196,7 @@ export async function createBook(input: NewBookInput): Promise<Book> {
     status: "unread",
     progress: 0,
     notes: "",
+    summary: "",
     createdAt: new Date().toISOString(),
   };
   return enqueue(async () => {

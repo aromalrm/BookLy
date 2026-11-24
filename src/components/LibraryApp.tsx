@@ -18,7 +18,7 @@ const FILTERS: { id: StatusFilter; label: string }[] = [
 
 function matches(book: Book, query: string): boolean {
   if (!query) return true;
-  const haystack = [book.title, book.authors, book.isbn ?? "", book.notes, book.spine]
+  const haystack = [book.title, book.authors, book.isbn ?? "", book.notes, book.summary, book.spine]
     .join(" ")
     .toLowerCase();
   return query
