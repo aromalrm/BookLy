@@ -6,7 +6,7 @@ Add a book by hand, or look one up by title or ISBN through the [Open Library](h
 
 The shelf is one row of spines. Scrolling, dragging, or the arrow keys move along it. The centered book turns to show its cover. That motion lives in `src/components/bookshelf/Bookshelf.tsx`.
 
-Books are stored in `data/library.json`, which is created on the first add and is not committed. The read and write functions are in `src/lib/store.ts`, so the file can be replaced with another store later.
+Books are stored in `data/library.json`, which is created on the first add and is not committed. On Vercel the same document is kept in a private Blob store when `BLOB_READ_WRITE_TOKEN` or `BLOB_STORE_ID` is set. The read and write functions are in `src/lib/store.ts`, so either backend can be replaced later.
 
 ## Run
 

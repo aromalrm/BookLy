@@ -1,3 +1,4 @@
+import { get, put } from "@vercel/blob";
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -6,12 +7,15 @@ import { paletteFor } from "./palette";
 import type { Book, BookPatch, NewBookInput, ReadingStatus } from "./types";
 
 /**
- * One person's library, stored as JSON on this machine.
- * Routes talk only to these functions, so the file can be swapped
- * for SQLite or another store without changing the UI.
+ * One person's library.
+ * Locally this is data/library.json. On Vercel, where the disk is read-only,
+ * the same JSON document lives in a private Blob store when
+ * BLOB_READ_WRITE_TOKEN or BLOB_STORE_ID is set.
+ * Routes talk only to these functions, so either backend can be swapped.
  */
 
 const DATA_PATH = path.join(process.cwd(), "data", "library.json");
+const BLOB_PATH = "library.json";
 const STATUSES = new Set<ReadingStatus>(["unread", "reading", "finished"]);
 
 let queue: Promise<unknown> = Promise.resolve();
@@ -39,12 +43,19 @@ function isBook(value: unknown): value is Book {
   );
 }
 
-async function readAll(): Promise<Book[]> {
+function usesBlob(): boolean {
+  return Boolean(process.env.BLOB_READ_WRITE_TOKEN || process.env.BLOB_STORE_ID);
+}
+
+function parseBooks(raw: string): Book[] {
+  const parsed = JSON.parse(raw) as unknown;
+  if (!Array.isArray(parsed)) return [];
+  return parsed.filter(isBook);
+}
+
+async function readFileLibrary(): Promise<Book[]> {
   try {
-    const raw = await readFile(DATA_PATH, "utf8");
-    const parsed = JSON.parse(raw) as unknown;
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter(isBook);
+    return parseBooks(await readFile(DATA_PATH, "utf8"));
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code;
     if (code === "ENOENT") return [];
@@ -52,11 +63,38 @@ async function readAll(): Promise<Book[]> {
   }
 }
 
-async function writeAll(books: Book[]): Promise<void> {
+async function readBlobLibrary(): Promise<Book[]> {
+  const result = await get(BLOB_PATH, { access: "private", useCache: false });
+  if (!result || result.statusCode !== 200) return [];
+  return parseBooks(await new Response(result.stream).text());
+}
+
+async function readAll(): Promise<Book[]> {
+  return usesBlob() ? readBlobLibrary() : readFileLibrary();
+}
+
+async function writeFileLibrary(books: Book[]): Promise<void> {
   await mkdir(path.dirname(DATA_PATH), { recursive: true });
   const temp = `${DATA_PATH}.tmp`;
   await writeFile(temp, JSON.stringify(books, null, 2), "utf8");
   await rename(temp, DATA_PATH);
+}
+
+async function writeBlobLibrary(books: Book[]): Promise<void> {
+  await put(BLOB_PATH, JSON.stringify(books, null, 2), {
+    access: "private",
+    addRandomSuffix: false,
+    allowOverwrite: true,
+    contentType: "application/json",
+  });
+}
+
+async function writeAll(books: Book[]): Promise<void> {
+  if (usesBlob()) {
+    await writeBlobLibrary(books);
+    return;
+  }
+  await writeFileLibrary(books);
 }
 
 function byCreated(a: Book, b: Book): number {
