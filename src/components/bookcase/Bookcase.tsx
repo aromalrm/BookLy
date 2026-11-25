@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+import { SpineImage } from "@/components/SpineImage";
 import type { Book, ShelfSection } from "@/lib/types";
 import { SECTION_LABELS } from "@/lib/types";
 import styles from "./bookcase.module.css";
@@ -20,6 +22,44 @@ function variation(id: string): number {
   let n = 0;
   for (const char of id) n = (n * 33 + char.charCodeAt(0)) % 997;
   return n;
+}
+
+function CaseSpine({
+  book,
+  height,
+  lean,
+  onOpen,
+}: {
+  book: Book;
+  height: number;
+  lean: number;
+  onOpen: () => void;
+}) {
+  const [art, setArt] = useState(Boolean(book.coverUrl));
+  return (
+    <button
+      type="button"
+      className={styles.spine}
+      data-testid="case-spine"
+      data-book-id={book.id}
+      data-title={book.title}
+      data-imaged={art ? "true" : "false"}
+      aria-label={`${book.title}, ${book.authors}`}
+      style={{
+        height: `${height}%`,
+        background: book.color.bg,
+        color: art ? "#f6efe4" : book.color.fg,
+        transform: `rotate(${lean}deg)`,
+      }}
+      onClick={onOpen}
+    >
+      <span className={styles.artSlot}>
+        <SpineImage src={art ? book.coverUrl : null} onFail={() => setArt(false)} />
+      </span>
+      <span className={styles.band} style={{ background: book.color.band }} />
+      <span className={styles.spineTitle}>{book.spine}</span>
+    </button>
+  );
 }
 
 function rowsOf(books: Book[], shelfCount: number): Book[][] {
@@ -58,28 +98,14 @@ export function Bookcase({ bays, mode, onOpenSection, onOpenBook }: Props) {
                     <div className={styles.books}>
                       {row.map((book) => {
                         const n = variation(book.id);
-                        const height = 90 + (n % 10);
-                        const lean = ((n % 5) - 2) * 0.4;
                         return (
-                          <button
+                          <CaseSpine
                             key={book.id}
-                            type="button"
-                            className={styles.spine}
-                            data-testid="case-spine"
-                            data-book-id={book.id}
-                            data-title={book.title}
-                            aria-label={`${book.title}, ${book.authors}`}
-                            style={{
-                              height: `${height}%`,
-                              background: book.color.bg,
-                              color: book.color.fg,
-                              transform: `rotate(${lean}deg)`,
-                            }}
-                            onClick={() => onOpenBook(book)}
-                          >
-                            <span className={styles.band} style={{ background: book.color.band }} />
-                            <span className={styles.spineTitle}>{book.spine}</span>
-                          </button>
+                            book={book}
+                            height={90 + (n % 10)}
+                            lean={((n % 5) - 2) * 0.4}
+                            onOpen={() => onOpenBook(book)}
+                          />
                         );
                       })}
                     </div>

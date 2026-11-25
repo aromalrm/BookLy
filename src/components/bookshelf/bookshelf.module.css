@@ -115,9 +115,23 @@
 
 .spineTitle,
 .spineAuthor {
+  position: relative;
+  z-index: 1;
   writing-mode: vertical-rl;
   text-align: center;
   overflow: hidden;
+}
+
+.spine:has([data-testid="spine-image"]) .spineTitle,
+.spine:has([data-testid="spine-image"]) .spineAuthor {
+  color: #f6efe4;
+  text-shadow:
+    0 0 2px rgba(16, 8, 4, 0.95),
+    0 1px 2px rgba(16, 8, 4, 0.9);
+}
+
+.spine:has([data-testid="spine-image"]) .band {
+  display: none;
 }
 
 .spineTitle {

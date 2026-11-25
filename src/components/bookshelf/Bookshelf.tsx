@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { SpineImage } from "@/components/SpineImage";
 import {
   coverInset,
   damp,
@@ -728,6 +729,9 @@ export function Bookshelf({
                   }
                 >
                   <div className={classNames(styles.face, styles.spine)} data-face="spine">
+                    {book.coverUrl && !failedCovers.has(book.id) ? (
+                      <SpineImage src={book.coverUrl} onFail={() => hideCover(book.id)} />
+                    ) : null}
                     <i className={styles.band}>{book.label}</i>
                     <span className={styles.spineTitle}>{book.spine}</span>
                     <span className={styles.spineAuthor}>{book.authorShort}</span>
