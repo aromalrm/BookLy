@@ -77,13 +77,56 @@ button:disabled {
     var(--cream);
 }
 
-.topbar {
+.mast {
   flex: none;
+  border-bottom: 1px solid var(--line);
+}
+
+.topbar {
   display: flex;
   align-items: center;
   gap: 22px;
-  padding: 18px 28px 14px;
-  border-bottom: 1px solid var(--line);
+  padding: 18px 28px 10px;
+}
+
+.sectionNav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0 28px 14px;
+}
+
+.sectionNav button {
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: transparent;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.sectionNav button[data-on="true"] {
+  background: var(--wood);
+  color: var(--paper);
+  border-color: transparent;
+}
+
+.logoButton {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  text-align: left;
+}
+
+.sectionHint {
+  margin: 14px 28px 0;
+  color: var(--ink-soft);
+  font-size: 14px;
+}
+
+.backButton {
+  height: 34px;
 }
 
 .brand {
@@ -178,14 +221,16 @@ button:disabled {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  padding: 16px 20px 18px;
 }
 
 .filters {
   flex: none;
   display: flex;
-  justify-content: center;
-  margin-bottom: 8px;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px 28px 0;
 }
 
 .pills {
@@ -295,7 +340,8 @@ button:disabled {
 
 .lookupRow input,
 .field input,
-.field textarea {
+.field textarea,
+.field select {
   width: 100%;
   border: 1px solid var(--line);
   border-radius: 12px;

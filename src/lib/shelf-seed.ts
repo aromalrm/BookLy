@@ -1,15 +1,16 @@
+import { MORE_BOOKS, sectionFor } from "./section-catalog";
 import { shortAuthor, spineText } from "./labels";
 import { paletteFor } from "./palette";
-import type { Book } from "./types";
+import type { Book, ShelfSection } from "./types";
 
 /** Bump this when the installed shelf itself should be replaced. */
-export const SHELF_SEED_ID = "shelf-eleven-v1";
+export const SHELF_SEED_ID = "shelf-sections-v1";
 
 type Seed = {
   id: string;
   title: string;
   authors: string;
-  isbn: string;
+  isbn: string | null;
   year: number | null;
   coverId: number;
   summary: string;
@@ -141,7 +142,8 @@ He writes in a bar-room voice about values, responsibility, and the relief of be
 
 export function seededShelf(): Book[] {
   const stamped = Date.parse("2026-01-01T00:00:00.000Z");
-  return SHELF.map((seed, index) => {
+  const shelf: Array<Seed & { section?: ShelfSection }> = [...SHELF, ...MORE_BOOKS];
+  return shelf.map((seed, index) => {
     const authors = seed.authors;
     return {
       id: seed.id,
@@ -158,6 +160,7 @@ export function seededShelf(): Book[] {
       progress: 0,
       notes: "",
       summary: seed.summary.trim(),
+      section: seed.section ?? sectionFor(seed.id),
       createdAt: new Date(stamped + index * 1000).toISOString(),
     };
   });

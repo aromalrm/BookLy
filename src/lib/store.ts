@@ -5,7 +5,7 @@ import path from "node:path";
 import { shortAuthor, spineText } from "./labels";
 import { paletteFor } from "./palette";
 import { SHELF_SEED_ID, seededShelf } from "./shelf-seed";
-import type { Book, BookPatch, NewBookInput, ReadingStatus } from "./types";
+import { isShelfSection, type Book, type BookPatch, type NewBookInput, type ReadingStatus } from "./types";
 
 /**
  * One person's library.
@@ -56,6 +56,7 @@ function parseBooks(raw: string): Book[] {
   return parsed.filter(isBook).map((book) => ({
     ...book,
     summary: typeof book.summary === "string" ? book.summary : "",
+    section: isShelfSection(book.section) ? book.section : "nonfiction",
   }));
 }
 
@@ -197,6 +198,7 @@ export async function createBook(input: NewBookInput): Promise<Book> {
     progress: 0,
     notes: "",
     summary: "",
+    section: isShelfSection(input.section) ? input.section : "nonfiction",
     createdAt: new Date().toISOString(),
   };
   return enqueue(async () => {

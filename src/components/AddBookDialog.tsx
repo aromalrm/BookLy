@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
-import type { LookupHit, NewBookInput } from "@/lib/types";
+import { SECTION_LABELS, SHELF_SECTIONS, type LookupHit, type NewBookInput, type ShelfSection } from "@/lib/types";
 
 type Props = {
   onClose: () => void;
@@ -21,6 +21,7 @@ export function AddBookDialog({ onClose, onCreate }: Props) {
   const [authors, setAuthors] = useState("");
   const [isbn, setIsbn] = useState("");
   const [handError, setHandError] = useState("");
+  const [section, setSection] = useState<ShelfSection>("nonfiction");
 
   useEffect(() => {
     lookupRef.current?.focus();
@@ -70,6 +71,7 @@ export function AddBookDialog({ onClose, onCreate }: Props) {
         isbn: hit.isbn,
         year: hit.year,
         coverUrl: hit.coverUrl,
+        section,
       });
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Couldn't add that book.");
@@ -90,6 +92,7 @@ export function AddBookDialog({ onClose, onCreate }: Props) {
         title,
         authors,
         isbn: isbn.trim() || null,
+        section,
       });
     } catch (error) {
       setHandError(error instanceof Error ? error.message : "Couldn't add that book.");
@@ -113,6 +116,20 @@ export function AddBookDialog({ onClose, onCreate }: Props) {
             ×
           </button>
         </div>
+        <label className="field">
+          <span>Section</span>
+          <select
+            data-testid="add-section"
+            value={section}
+            onChange={(event) => setSection(event.target.value as ShelfSection)}
+          >
+            {SHELF_SECTIONS.map((id) => (
+              <option key={id} value={id}>
+                {SECTION_LABELS[id]}
+              </option>
+            ))}
+          </select>
+        </label>
         <div className="tabs" role="tablist">
           <button
             type="button"
