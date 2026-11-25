@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AddBookDialog } from "@/components/AddBookDialog";
 import { BookPage } from "@/components/BookPage";
 import { Bookcase } from "@/components/bookcase/Bookcase";
 import { Bookshelf, type ShelfBook } from "@/components/bookshelf/Bookshelf";
@@ -12,7 +11,6 @@ import {
   SHELF_SECTIONS,
   type Book,
   type BookPatch,
-  type NewBookInput,
   type ReadingStatus,
   type ShelfSection,
 } from "@/lib/types";
@@ -25,26 +23,6 @@ const FILTERS: { id: StatusFilter; label: string }[] = [
   { id: "reading", label: "Reading" },
   { id: "finished", label: "Finished" },
 ];
-
-function matches(book: Book, query: string): boolean {
-  if (!query) return true;
-  const haystack = [
-    book.title,
-    book.authors,
-    book.isbn ?? "",
-    book.notes,
-    book.summary,
-    book.spine,
-    SECTION_LABELS[book.section],
-  ]
-    .join(" ")
-    .toLowerCase();
-  return query
-    .toLowerCase()
-    .split(/\s+/)
-    .filter(Boolean)
-    .every((word) => haystack.includes(word));
-}
 
 async function readError(response: Response): Promise<string> {
   try {
@@ -65,9 +43,7 @@ export function LibraryApp({
   initialBookId: string | null;
 }) {
   const [books, setBooks] = useState(initialBooks);
-  const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<StatusFilter>("all");
-  const [adding, setAdding] = useState(false);
   const [section, setSection] = useState<ShelfSection | null>(initialSection);
   const [bookId, setBookId] = useState<string | null>(initialBookId);
   const [shelfOpen, setShelfOpen] = useState(false);
@@ -96,22 +72,15 @@ export function LibraryApp({
   const order = useMemo(() => new Map(books.map((book, index) => [book.id, index])), [books]);
   const selected = books.find((book) => book.id === bookId) ?? null;
   const activeSection = selected?.section ?? section;
-  const trimmedQuery = query.trim();
-
-  const caseBooks = useMemo(
-    () => books.filter((book) => matches(book, trimmedQuery)),
-    [books, trimmedQuery],
-  );
 
   const readingBooks = useMemo(() => {
     if (!selected) return [];
     return books.filter(
       (book) =>
         book.section === selected.section &&
-        (book.id === selected.id ||
-          ((filter === "all" || book.status === filter) && matches(book, trimmedQuery))),
+        (book.id === selected.id || filter === "all" || book.status === filter),
     );
-  }, [books, filter, selected, trimmedQuery]);
+  }, [books, filter, selected]);
 
   const shelfBooks: ShelfBook[] = readingBooks.map((book) => ({
     id: book.id,
@@ -130,26 +99,12 @@ export function LibraryApp({
 
   const homeBays = SHELF_SECTIONS.map((id) => ({
     id,
-    books: caseBooks.filter((book) => book.section === id),
+    books: books.filter((book) => book.section === id),
   }));
 
   const sectionBay = activeSection
-    ? [{ id: activeSection, books: caseBooks.filter((book) => book.section === activeSection) }]
+    ? [{ id: activeSection, books: books.filter((book) => book.section === activeSection) }]
     : [];
-
-  async function createBook(input: NewBookInput) {
-    const response = await fetch("/api/library", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(input),
-    });
-    if (!response.ok) throw new Error(await readError(response));
-    const payload = (await response.json()) as { book: Book };
-    setBooks((current) => [...current, payload.book]);
-    setAdding(false);
-    setQuery("");
-    go(payload.book.section, payload.book.id);
-  }
 
   async function updateBook(id: string, patch: BookPatch) {
     const previous = books;
@@ -186,64 +141,15 @@ export function LibraryApp({
     finished: readingBooks.filter((book) => book.status === "finished").length,
   };
 
-  const countLabel = selected
-    ? SECTION_LABELS[selected.section]
-    : activeSection
-      ? `${sectionBay[0]?.books.length ?? 0} in ${SECTION_LABELS[activeSection]}`
-      : books.length === 1
-        ? "1 book"
-        : `${books.length} books`;
-
   return (
     <>
       <div className="app">
-        <header className="mast" inert={shelfOpen || adding ? true : undefined}>
-          <div className="topbar">
-            <div className="brand">
-              <button type="button" className="logoButton" data-testid="nav-home" onClick={() => go(null, null)}>
-                <span className="logo">BookLy</span>
-              </button>
-              <p className="count">{countLabel}</p>
-            </div>
-            <label className="search">
-              <span className="srOnly">Search your shelf</span>
-              <input
-                data-testid="search"
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search your shelf"
-                autoComplete="off"
-              />
-              {query ? (
-                <button type="button" className="clearSearch" onClick={() => setQuery("")}>
-                  Clear
-                </button>
-              ) : null}
-            </label>
-            <button
-              type="button"
-              className="addButton"
-              data-testid="add-book"
-              onClick={() => setAdding(true)}
-            >
-              Add a book
-            </button>
-          </div>
-          <nav className="sectionNav" aria-label="Library sections">
-            {SHELF_SECTIONS.map((id) => (
-              <button
-                key={id}
-                type="button"
-                data-testid={`nav-${id}`}
-                data-on={activeSection === id}
-                onClick={() => go(id, null)}
-              >
-                {SECTION_LABELS[id]}
-              </button>
-            ))}
-          </nav>
+        <header className="mast" inert={shelfOpen ? true : undefined}>
+          <button type="button" className="logoButton" data-testid="nav-home" onClick={() => go(null, null)}>
+            <span className="logo">BookLy</span>
+          </button>
         </header>
-        <div className="workspace" inert={adding ? true : undefined}>
+        <div className="workspace">
           {selected ? (
             <>
               <div className="filters" inert={shelfOpen ? true : undefined}>
@@ -312,9 +218,6 @@ export function LibraryApp({
           )}
         </div>
       </div>
-      {adding ? (
-        <AddBookDialog onClose={() => setAdding(false)} onCreate={createBook} />
-      ) : null}
     </>
   );
 }

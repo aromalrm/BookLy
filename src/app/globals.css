@@ -79,14 +79,9 @@ button:disabled {
 
 .mast {
   flex: none;
-  border-bottom: 1px solid var(--line);
-}
-
-.topbar {
   display: flex;
-  align-items: center;
-  gap: 22px;
-  padding: 18px 28px 10px;
+  justify-content: center;
+  padding: 22px 16px 4px;
 }
 
 .sectionNav {
@@ -116,7 +111,7 @@ button:disabled {
   border: 0;
   background: transparent;
   padding: 0;
-  text-align: left;
+  text-align: center;
 }
 
 .sectionHint {
