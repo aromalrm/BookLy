@@ -4,25 +4,18 @@ import { useEffect, useMemo, useState } from "react";
 import { BookPage } from "@/components/BookPage";
 import { Bookcase } from "@/components/bookcase/Bookcase";
 import { Bookshelf, type ShelfBook } from "@/components/bookshelf/Bookshelf";
+import { Catalog } from "@/components/Catalog";
+import { Inspector } from "@/components/Inspector";
 import { shelfLabel, statusLine } from "@/lib/labels";
-import {
-  isShelfSection,
-  SECTION_LABELS,
-  SHELF_SECTIONS,
-  type Book,
-  type BookPatch,
-  type ReadingStatus,
-  type ShelfSection,
-} from "@/lib/types";
+import { SHELF_SECTIONS, type Book, type BookPatch, type ShelfSection } from "@/lib/types";
 
-type StatusFilter = "all" | ReadingStatus;
+type View = "hall" | "catalog" | "reading" | "inspect" | "turning";
 
-const FILTERS: { id: StatusFilter; label: string }[] = [
-  { id: "all", label: "All" },
-  { id: "unread", label: "Unread" },
-  { id: "reading", label: "Reading" },
-  { id: "finished", label: "Finished" },
-];
+const VIEWS: View[] = ["hall", "catalog", "reading", "inspect", "turning"];
+
+function isView(value: string | null): value is View {
+  return VIEWS.includes(value as View);
+}
 
 async function readError(response: Response): Promise<string> {
   try {
@@ -35,54 +28,48 @@ async function readError(response: Response): Promise<string> {
 
 export function LibraryApp({
   initialBooks,
-  initialSection,
+  initialView,
   initialBookId,
 }: {
   initialBooks: Book[];
-  initialSection: ShelfSection | null;
+  initialView: View;
   initialBookId: string | null;
 }) {
   const [books, setBooks] = useState(initialBooks);
-  const [filter, setFilter] = useState<StatusFilter>("all");
-  const [section, setSection] = useState<ShelfSection | null>(initialSection);
+  const [view, setView] = useState<View>(initialView);
+  const [section, setSection] = useState<ShelfSection | null>(null);
   const [bookId, setBookId] = useState<string | null>(initialBookId);
   const [shelfOpen, setShelfOpen] = useState(false);
 
   useEffect(() => {
     const onPop = () => {
       const params = new URLSearchParams(window.location.search);
-      const nextSection = params.get("section");
-      setSection(isShelfSection(nextSection) ? nextSection : null);
+      const next = params.get("view");
+      setView(isView(next) ? next : "hall");
       setBookId(params.get("book"));
     };
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
   }, []);
 
-  function go(nextSection: ShelfSection | null, nextBookId: string | null) {
+  function go(nextView: View, nextBookId: string | null) {
     const params = new URLSearchParams();
-    if (nextSection) params.set("section", nextSection);
+    if (nextView !== "hall") params.set("view", nextView);
     if (nextBookId) params.set("book", nextBookId);
     const queryString = params.toString();
     window.history.pushState(null, "", queryString ? `/?${queryString}` : "/");
-    setSection(nextSection);
+    setView(nextView);
     setBookId(nextBookId);
+    if (nextView === "hall") setSection(null);
   }
 
   const order = useMemo(() => new Map(books.map((book, index) => [book.id, index])), [books]);
   const selected = books.find((book) => book.id === bookId) ?? null;
-  const activeSection = selected?.section ?? section;
+  const shelfSource = selected
+    ? books.filter((book) => book.section === selected.section)
+    : [];
 
-  const readingBooks = useMemo(() => {
-    if (!selected) return [];
-    return books.filter(
-      (book) =>
-        book.section === selected.section &&
-        (book.id === selected.id || filter === "all" || book.status === filter),
-    );
-  }, [books, filter, selected]);
-
-  const shelfBooks: ShelfBook[] = readingBooks.map((book) => ({
+  const shelfBooks: ShelfBook[] = shelfSource.map((book) => ({
     id: book.id,
     title: book.title,
     authors: book.authors,
@@ -102,8 +89,8 @@ export function LibraryApp({
     books: books.filter((book) => book.section === id),
   }));
 
-  const sectionBay = activeSection
-    ? [{ id: activeSection, books: books.filter((book) => book.section === activeSection) }]
+  const sectionBay = section
+    ? [{ id: section, books: books.filter((book) => book.section === section) }]
     : [];
 
   async function updateBook(id: string, patch: BookPatch) {
@@ -124,9 +111,8 @@ export function LibraryApp({
 
   async function removeBook(id: string) {
     const previous = books;
-    const removed = books.find((book) => book.id === id);
     setBooks((current) => current.filter((book) => book.id !== id));
-    if (bookId === id) go(removed?.section ?? section, null);
+    if (bookId === id) go("hall", null);
     const response = await fetch(`/api/library/${id}`, { method: "DELETE" });
     if (!response.ok) {
       setBooks(previous);
@@ -134,90 +120,102 @@ export function LibraryApp({
     }
   }
 
-  const counts = {
-    all: readingBooks.length,
-    unread: readingBooks.filter((book) => book.status === "unread").length,
-    reading: readingBooks.filter((book) => book.status === "reading").length,
-    finished: readingBooks.filter((book) => book.status === "finished").length,
-  };
+  function renderOpen(id: string, close: () => void) {
+    const book = books.find((item) => item.id === id);
+    if (!book) return null;
+    return (
+      <BookPage
+        key={book.id}
+        book={book}
+        onUpdate={(patch) => updateBook(book.id, patch)}
+        onRemove={async () => {
+          await removeBook(book.id);
+          close();
+        }}
+      />
+    );
+  }
+
+  const hall = view === "hall" || (view === "turning" && !selected);
 
   return (
-    <>
-      <div className="app">
-        <header className="mast" inert={shelfOpen ? true : undefined}>
-          <button type="button" className="logoButton" data-testid="nav-home" onClick={() => go(null, null)}>
-            <span className="logo">BookLy</span>
+    <div className="app">
+      <header className="mast" inert={shelfOpen ? true : undefined}>
+        <button type="button" className="logoButton" data-testid="nav-home" onClick={() => go("hall", null)}>
+          <span className="logo">BookLy</span>
+        </button>
+        <nav className="goldNav" aria-label="Library">
+          <button type="button" data-testid="nav-hall" data-on={view === "hall" || view === "turning"} onClick={() => go("hall", null)}>
+            Hall
           </button>
-        </header>
-        <div className="workspace">
+          <button type="button" data-testid="nav-catalog" data-on={view === "catalog"} onClick={() => go("catalog", bookId)}>
+            Catalog
+          </button>
           {selected ? (
             <>
-              <div className="filters" inert={shelfOpen ? true : undefined}>
-                <button
-                  type="button"
-                  className="ghost backButton"
-                  data-testid="back-to-section"
-                  onClick={() => go(selected.section, null)}
-                >
-                  Back to {SECTION_LABELS[selected.section]}
-                </button>
-                <div className="pills" role="group" aria-label="Filter by status">
-                  {FILTERS.map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      data-on={filter === item.id}
-                      onClick={() => setFilter(item.id)}
-                    >
-                      {item.label} {counts[item.id]}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <Bookshelf
-                key={selected.id}
-                books={shelfBooks}
-                focusId={selected.id}
-                emptyTitle="Nothing matches"
-                emptyBody="No book in this section fits that search."
-                onOpenChange={setShelfOpen}
-                renderBook={(id, close) => {
-                  const book = books.find((item) => item.id === id);
-                  if (!book) return null;
-                  return (
-                    <BookPage
-                      key={book.id}
-                      book={book}
-                      onUpdate={(patch) => updateBook(book.id, patch)}
-                      onRemove={async () => {
-                        await removeBook(book.id);
-                        close();
-                      }}
-                    />
-                  );
-                }}
-              />
+              <button
+                type="button"
+                data-testid="nav-reading"
+                data-on={view === "reading"}
+                onClick={() => go("reading", selected.id)}
+              >
+                Reading
+              </button>
+              <button
+                type="button"
+                data-testid="nav-inspect"
+                data-on={view === "inspect"}
+                onClick={() => go("inspect", selected.id)}
+              >
+                Inspector
+              </button>
             </>
-          ) : activeSection ? (
-            <>
-              <p className="sectionHint">Choose a book. It stays on the shelf until you do.</p>
-              <Bookcase
-                mode="section"
-                bays={sectionBay}
-                onOpenSection={(id) => go(id, null)}
-                onOpenBook={(book) => go(book.section, book.id)}
-              />
-            </>
-          ) : (
-            <Bookcase
-              mode="home"
-              bays={homeBays}
-              onOpenSection={(id) => go(id, null)}
-              onOpenBook={(book) => go(book.section, book.id)}
-            />
-          )}
-        </div>
+          ) : null}
+        </nav>
+      </header>
+      <div className="workspace">
+        {view === "turning" && selected ? (
+          <Bookshelf
+            key={selected.id}
+            autoOpen
+            books={shelfBooks}
+            focusId={selected.id}
+            emptyTitle="The shelf is empty"
+            emptyBody="This section has no books."
+            onOpenChange={setShelfOpen}
+            renderBook={renderOpen}
+          />
+        ) : null}
+        {view === "reading" && selected ? (
+          renderOpen(selected.id, () => go("hall", null))
+        ) : null}
+        {view === "inspect" && selected ? <Inspector book={selected} /> : null}
+        {view === "catalog" ? (
+          <Catalog
+            books={books}
+            onInspect={(book) => go("inspect", book.id)}
+            onRead={(book) => go("turning", book.id)}
+          />
+        ) : null}
+        {hall && section ? (
+          <Bookcase
+            mode="section"
+            bays={sectionBay}
+            onOpenSection={(id) => setSection(id)}
+            onOpenBook={(book) => go("turning", book.id)}
+          />
+        ) : null}
+        {hall && !section ? (
+          <Bookcase
+            mode="home"
+            bays={homeBays}
+            onOpenSection={(id) => setSection(id)}
+            onOpenBook={(book) => go("turning", book.id)}
+          />
+        ) : null}
       </div>
-    </>
+    </div>
   );
 }
+
+export type { View };

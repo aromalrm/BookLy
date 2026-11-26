@@ -1,14 +1,20 @@
 import type { Metadata } from "next";
-import { Fraunces, Outfit } from "next/font/google";
+import { EB_Garamond, Manrope, Newsreader } from "next/font/google";
 import "./globals.css";
 
-const display = Fraunces({
+const display = EB_Garamond({
   subsets: ["latin"],
   variable: "--font-display",
   weight: ["500", "600", "700"],
 });
 
-const sans = Outfit({
+const body = Newsreader({
+  subsets: ["latin"],
+  variable: "--font-body",
+  weight: ["400", "500", "600"],
+});
+
+const sans = Manrope({
   subsets: ["latin"],
   variable: "--font-sans",
   weight: ["400", "500", "600", "700"],
@@ -16,13 +22,13 @@ const sans = Outfit({
 
 export const metadata: Metadata = {
   title: "BookLy",
-  description: "A personal bookshelf. Add books by hand or by title and ISBN, and keep progress and notes.",
+  description: "A personal library. Read, keep notes, and inspect the books on the shelf.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className={`${display.variable} ${sans.variable}`}>{children}</body>
+      <body className={`${display.variable} ${body.variable} ${sans.variable}`}>{children}</body>
     </html>
   );
 }

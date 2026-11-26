@@ -1,21 +1,26 @@
 import { LibraryApp } from "@/components/LibraryApp";
 import { listBooks } from "@/lib/store";
-import { isShelfSection, type ShelfSection } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
+
+const VIEWS = ["hall", "catalog", "reading", "inspect", "turning"] as const;
+type View = (typeof VIEWS)[number];
+
+function viewOf(value: string | undefined): View {
+  return VIEWS.includes(value as View) ? (value as View) : "hall";
+}
 
 export default async function HomePage({
   searchParams,
 }: {
-  searchParams: Promise<{ section?: string; book?: string }>;
+  searchParams: Promise<{ view?: string; book?: string }>;
 }) {
   const params = await searchParams;
   const books = await listBooks();
-  const initialSection: ShelfSection | null = isShelfSection(params.section) ? params.section : null;
   return (
     <LibraryApp
       initialBooks={books}
-      initialSection={initialSection}
+      initialView={viewOf(params.view)}
       initialBookId={typeof params.book === "string" ? params.book : null}
     />
   );

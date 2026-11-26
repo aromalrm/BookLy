@@ -30,6 +30,8 @@ export type ShelfBook = {
 type Props = {
   books: ShelfBook[];
   focusId?: string | null;
+  /** Scroll to the focused book, hinge it, then open the page. */
+  autoOpen?: boolean;
   emptyTitle: string;
   emptyBody: string;
   onOpenChange?: (open: boolean) => void;
@@ -86,6 +88,7 @@ function classNames(...parts: Array<string | false | null | undefined>): string 
 export function Bookshelf({
   books,
   focusId,
+  autoOpen = false,
   emptyTitle,
   emptyBody,
   onOpenChange,
@@ -267,11 +270,21 @@ export function Bookshelf({
     } else if (!signatureChanged) {
       return;
     }
-    state.position = base + index;
-    state.target = base + index;
-    state.activeId = list[index]?.id ?? "";
-    setCenteredId(state.activeId || null);
-  }, [signature, focusId]);
+    const destination = base + index;
+    if (autoOpen && index > 0) {
+      state.position = base;
+      state.target = destination;
+      state.openAfterTurn = true;
+      state.activeId = list[0]?.id ?? "";
+      setCenteredId(list[0]?.id ?? null);
+    } else {
+      state.position = destination;
+      state.target = destination;
+      state.activeId = list[index]?.id ?? "";
+      setCenteredId(state.activeId || null);
+      if (autoOpen) state.openAfterTurn = true;
+    }
+  }, [signature, focusId, autoOpen]);
 
   useLayoutEffect(() => {
     const state = motion.current;

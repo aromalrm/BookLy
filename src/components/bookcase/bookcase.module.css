@@ -2,10 +2,8 @@
   flex: 1;
   min-height: 0;
   overflow: auto;
-  padding: 22px 28px 32px;
-  background:
-    radial-gradient(ellipse at 50% 0%, rgba(255, 250, 242, 0.7), transparent 42%),
-    #f3ebdf;
+  padding: 8px 28px 32px;
+  background: transparent;
 }
 
 .case,
@@ -14,19 +12,19 @@
   margin: 0 auto;
   padding: 0 14px 0;
   background:
-    linear-gradient(90deg, rgba(255, 220, 180, 0.08), transparent 12%, transparent 88%, rgba(0, 0, 0, 0.28)),
+    linear-gradient(90deg, rgba(242, 202, 80, 0.08), transparent 12%, transparent 88%, rgba(0, 0, 0, 0.35)),
     repeating-linear-gradient(
       90deg,
-      #3a2418 0px,
-      #4a2e1e 14px,
-      #2c1a12 28px,
-      #3f281b 46px
+      #1b110b 0px,
+      #281d17 14px,
+      #120b07 28px,
+      #1b110b 46px
     );
   border-radius: 6px 6px 4px 4px;
   box-shadow:
-    0 24px 40px rgba(42, 24, 14, 0.28),
-    inset 0 0 0 2px #5c3b28,
-    inset 0 0 0 8px #2a1810;
+    0 24px 40px rgba(0, 0, 0, 0.45),
+    inset 0 0 0 1px #d4af37,
+    inset 0 0 0 8px #160c07;
 }
 
 .caseSection {
@@ -42,8 +40,8 @@
   margin: 0 -8px;
   border-radius: 4px 4px 0 0;
   background:
-    linear-gradient(#7a5340, #5a3828 42%, #2a1810 46%, #4a2e20 100%);
-  box-shadow: 0 4px 0 #1c100c;
+    linear-gradient(#f2ca50, #d4af37 40%, #1b110b 46%, #3a2a16 100%);
+  box-shadow: 0 4px 0 #0c0704;
 }
 
 .plinth {
@@ -74,10 +72,10 @@
 .plaque,
 .plaqueStatic {
   margin: 8px 10px 4px;
-  border: 0;
+  border: 1px solid rgba(212, 175, 55, 0.45);
   border-radius: 2px;
-  background: linear-gradient(#6b4632, #4a2e20);
-  color: #f6efe4;
+  background: linear-gradient(#281d17, #1b110b);
+  color: #f2ca50;
   font-family: var(--font-display), Palatino, Georgia, serif;
   font-size: 15px;
   letter-spacing: 0.04em;

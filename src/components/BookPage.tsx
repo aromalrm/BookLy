@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { Book, BookPatch, ReadingStatus } from "@/lib/types";
+import { SECTION_LABELS, type Book, type BookPatch, type ReadingStatus } from "@/lib/types";
 
 const STATUSES: { id: ReadingStatus; label: string }[] = [
   { id: "unread", label: "Unread" },
@@ -23,7 +23,6 @@ export function BookPage({ book, onUpdate, onRemove }: Props) {
   const [noteSaved, setNoteSaved] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [coverFailed, setCoverFailed] = useState(false);
 
   async function commit(patch: BookPatch) {
     setError(null);
@@ -85,8 +84,26 @@ export function BookPage({ book, onUpdate, onRemove }: Props) {
   const dirty = notes !== book.notes;
 
   return (
-    <div className="bookSheet">
-      <div>
+    <div className="reading" data-testid="reading">
+      <article className="parchment">
+        <p className="kicker">{SECTION_LABELS[book.section]}</p>
+        <h2 className="bookTitle">{book.title}</h2>
+        <p className="byline">
+          {book.authors}
+          {book.year ? ` · ${book.year}` : ""}
+        </p>
+        {book.summary ? (
+          <div className="summary" data-testid="summary">
+            {book.summary.split(/\n\n+/).map((paragraph) => (
+              <p key={paragraph.slice(0, 48)}>{paragraph}</p>
+            ))}
+          </div>
+        ) : (
+          <p className="byline">This book has no summary yet.</p>
+        )}
+      </article>
+      <aside className="desk" aria-label="Notes and progress">
+        <p className="deskLabel">Status</p>
         <div className="statusRow" role="group" aria-label="Reading status">
           {STATUSES.map((item) => (
             <button
@@ -100,22 +117,9 @@ export function BookPage({ book, onUpdate, onRemove }: Props) {
             </button>
           ))}
         </div>
-        <h2 className="bookTitle">{book.title}</h2>
-        <p className="byline">
-          {book.authors}
-          {book.year ? ` · ${book.year}` : ""}
-          {book.isbn ? ` · ${book.isbn}` : ""}
-        </p>
-        {book.summary ? (
-          <div className="summary" data-testid="summary">
-            {book.summary.split(/\n\n+/).map((paragraph) => (
-              <p key={paragraph.slice(0, 48)}>{paragraph}</p>
-            ))}
-          </div>
-        ) : null}
         <label className="progressBlock">
           <span className="progressHead">
-            <span>Reading progress</span>
+            <span>Progress</span>
             <span>{progress}%</span>
           </span>
           <input
@@ -164,21 +168,7 @@ export function BookPage({ book, onUpdate, onRemove }: Props) {
           </div>
         </div>
         {error ? <p className="errorText">{error}</p> : null}
-      </div>
-      <div className="poster">
-        {book.coverUrl && !coverFailed ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={book.coverUrl}
-            alt=""
-            onError={() => setCoverFailed(true)}
-          />
-        ) : (
-          <div className="posterFallback" style={{ background: book.color.bg, color: book.color.fg }}>
-            {book.title}
-          </div>
-        )}
-      </div>
+      </aside>
     </div>
   );
 }
